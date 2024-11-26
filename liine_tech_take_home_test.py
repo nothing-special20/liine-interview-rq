@@ -36,12 +36,15 @@ def extract_days(days_string):
     return days
 
 def extract_times(time_string):
-    times_list = time_string.split(" - ")
+    try:
+        times_list = time_string.split(" - ")
 
-    open_time = parse_time_alt(times_list[0])
-    end_time = parse_time_alt(times_list[1])
+        open_time = parse_time_alt(times_list[0])
+        end_time = parse_time_alt(times_list[1])
 
-    return {"open_time": open_time, "end_time": end_time}
+        return {"open_time": open_time, "end_time": end_time}
+    except ValueError as e:
+        raise ValueError(f"Invalid time string format: {time_string}") from e
 
 def restaurant_hours_etl(x):
     days_times_open = []
@@ -60,15 +63,18 @@ def restaurant_hours_etl(x):
     return days_times_open
 
 def main_etl(data):
-    data["open_times_normalized"] = data['Hours'].apply(restaurant_hours_etl)
-    data_expanded = (data.explode('open_times_normalized')
-                .reset_index(drop=True)
-                .join(pd.json_normalize(data['open_times_normalized'].explode())))
+    try:
+        processed_data = data.copy()
+        processed_data["open_times_normalized"] = processed_data['Hours'].apply(restaurant_hours_etl)
+        data_expanded = (processed_data.explode('open_times_normalized')
+                    .reset_index(drop=True)
+                    .join(pd.json_normalize(processed_data['open_times_normalized'].explode())))
 
+        del data_expanded['open_times_normalized']
 
-    del data_expanded['open_times_normalized']
-
-    return data_expanded
+        return data_expanded
+    except Exception as e:
+        raise RuntimeError(f"ETL process failed: {str(e)}") from e
 
 def search_open_times(data, datetime_str):
     dt = datetime.strptime(datetime_str, "%Y-%m-%d %H:%M")

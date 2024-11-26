@@ -1,7 +1,6 @@
 import pandas as pd
 import re
 from datetime import datetime
-from io import StringIO
 
 pd.set_option('display.max_colwidth', None)
 
@@ -103,7 +102,7 @@ def main_etl(data):
 def is_open(open_time, close_time, current_time):
     return open_time <= current_time <= close_time
 
-def search_open_restaurants(data, datetime_str):
+def search_open_restaurants(data, datetime_str, restaurant=None):
     try:
         dt = datetime.strptime(datetime_str, "%Y-%m-%d %H:%M")
         search_day = dt.strftime("%A")[:3]
@@ -120,29 +119,11 @@ def search_open_restaurants(data, datetime_str):
             lambda row: is_open(row["open_time"], row["close_time"], search_time), 
             axis=1
         )
+        if restaurant:
+            is_restaurant = (filtered_data["Restaurant Name"]==restaurant)
+            filtered_data = filtered_data[is_restaurant]
 
-        return filtered_data[is_open_hour][["Restaurant Name"]].drop_duplicates()
+        return filtered_data[is_open_hour][["Restaurant Name"]].drop_duplicates().values.flatten().tolist()
     
     except ValueError as e:
         raise ValueError(f"Invalid datetime format. Expected 'YYYY-MM-DD HH:MM', got '{datetime_str}'") from e
-
-if __name__ == "__main__":  
-    # raw_data = pd.read_csv(file)
-    csv_data = '''"Restaurant Name","Hours"
-"Seoul 116","Mon-Sun 11 am - 4 am"'''
-    
-    raw_data = pd.read_csv(StringIO(csv_data))
-
-    main_data = main_etl(raw_data)
-
-    # datetime_str = "2024-11-26 01:35"
-    datetime_str = "2024-11-26 13:30"
-
-    print(main_data)
-
-    x = search_open_restaurants(main_data, datetime_str)
-
-    print(x)
-    print(len(x))
-
-    main_data.to_csv("test_data.csv")

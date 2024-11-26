@@ -40,9 +40,9 @@ def extract_times(time_string):
         times_list = time_string.split(" - ")
 
         open_time = parse_time_alt(times_list[0])
-        end_time = parse_time_alt(times_list[1])
+        close_time = parse_time_alt(times_list[1])
 
-        return {"open_time": open_time, "end_time": end_time}
+        return {"open_time": open_time, "close_time": close_time}
     except ValueError as e:
         raise ValueError(f"Invalid time string format: {time_string}") from e
 
@@ -58,7 +58,7 @@ def restaurant_hours_etl(x):
         times = extract_times(time_string)
 
         for day in days:
-            days_times_open.append({"day": day, "open_time": times["open_time"], "end_time": times["end_time"]})
+            days_times_open.append({"day": day, "open_time": times["open_time"], "close_time": times["close_time"]})
 
     return days_times_open
 
@@ -75,27 +75,49 @@ def main_etl(data):
         return data_expanded
     except Exception as e:
         raise RuntimeError(f"ETL process failed: {str(e)}") from e
+    
 
-def search_open_times(data, datetime_str):
-    dt = datetime.strptime(datetime_str, "%Y-%m-%d %H:%M")
-    weekday = dt.strftime("%A")[:3]
-    time = dt.time()
+def is_open(open_time, close_time, current_time):
+    """Check if restaurant is open at given time, handling midnight crossing."""
+    if open_time <= close_time:
+        return open_time <= current_time <= close_time
+    else:
+        # Handle cases where closing time is past midnight
+        # Given the format of the data, which shows 42nd Street Oyster Bar	Mon-Sat 11 am - 12 am / Sun 12 pm - 2 am
+        # If the restaurant shows as open til 2 am on Sunday, the search logic will use Sunday as the day and 2am as the close time,
+        # even though it is technically Monday
+        return current_time >= open_time or current_time <= close_time
 
-    if weekday == "Tue":
-        weekday = "Tues"
+def search_open_restaurants(data, datetime_str):
+    try:
+        dt = datetime.strptime(datetime_str, "%Y-%m-%d %H:%M")
+        search_day = dt.strftime("%A")[:3]
+        search_time = dt.time()
 
-    filtered_data = data[(data["day"]==weekday) & (data["open_time"] < time) & (data["end_time"] > time)]
+        if search_day == "Tue":
+            search_day = "Tues"
 
-    return filtered_data
+        filtered_data = data.copy()
+        is_open_day = (filtered_data["day"]==search_day)
+        filtered_data = filtered_data[is_open_day]
 
+        is_open_hour = filtered_data.apply(
+            lambda row: is_open(row["open_time"], row["close_time"], search_time), 
+            axis=1
+        )
+
+        return filtered_data[is_open_hour][["Restaurant Name"]].drop_duplicates()
+    
+    except ValueError as e:
+        raise ValueError(f"Invalid datetime format. Expected 'YYYY-MM-DD HH:MM', got '{datetime_str}'") from e
 
 if __name__ == "__main__":  
     raw_data = pd.read_csv(file)
     main_data = main_etl(raw_data)
 
-    datetime_str = "2024-11-25 01:35"
+    datetime_str = "2024-11-24 01:35"
 
-    x = search_open_times(main_data, datetime_str)
+    x = search_open_restaurants(main_data, datetime_str)
 
     print(x)
 

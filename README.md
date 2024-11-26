@@ -2,7 +2,7 @@
 Python code to transform and search restaurant data for Liine's take home coding exam
 
 # how to run
-docker build -t fastapi-app .
+docker build -t fastapi-app . \
 docker run -p 8000:8000 fastapi-app
 
 # example curl request

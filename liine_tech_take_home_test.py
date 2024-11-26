@@ -59,6 +59,15 @@ def restaurant_hours_etl(x):
 
     return days_times_open
 
+def main_etl(data):
+    data["open_times_normalized"] = data['Hours'].apply(restaurant_hours_etl)
+    data_expanded = (data.explode('open_times_normalized')
+                .reset_index(drop=True)
+                .join(pd.json_normalize(data['open_times_normalized'].explode())))
+
+
+    del data_expanded['open_times_normalized']
+
 def search_open_times(data, datetime_str):
     dt = datetime.strptime(datetime_str, "%Y-%m-%d %H:%M")
     weekday = dt.strftime("%A")[:3]
@@ -70,15 +79,6 @@ def search_open_times(data, datetime_str):
     filtered_data = data[(data["day"]==weekday) & (data["open_time"] < time) & (data["end_time"] > time)]
 
     return filtered_data
-
-def main_etl(data):
-    data["open_times_normalized"] = data['Hours'].apply(restaurant_hours_etl)
-    data_expanded = (data.explode('open_times_normalized')
-                .reset_index(drop=True)
-                .join(pd.json_normalize(data['open_times_normalized'].explode())))
-
-
-    del data_expanded['open_times_normalized']
 
 
 if __name__ == "__main__":  

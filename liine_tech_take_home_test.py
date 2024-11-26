@@ -68,6 +68,8 @@ def main_etl(data):
 
     del data_expanded['open_times_normalized']
 
+    return data_expanded
+
 def search_open_times(data, datetime_str):
     dt = datetime.strptime(datetime_str, "%Y-%m-%d %H:%M")
     weekday = dt.strftime("%A")[:3]

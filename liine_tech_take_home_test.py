@@ -1,6 +1,7 @@
 import pandas as pd
 import re
-from datetime import datetime
+from datetime import datetime, time
+from typing import List, TypedDict, Optional
 
 pd.set_option('display.max_colwidth', None)
 
@@ -8,18 +9,21 @@ ALL_DAYS_LIST = ["Mon", "Tues", "Wed", "Thu", "Fri", "Sat", "Sun"]
 
 file = "liine_data.txt"
 
-def parse_time_alt(time_str):
+def parse_time_alt(time_str: str) -> time:
     time_str = time_str.strip()
     fmt = "%I:%M %p" if ":" in time_str else "%I %p"
     return datetime.strptime(time_str, fmt).time()
 
-def get_next_day(day):
+def get_next_day(day: str) -> str:
+    if day not in ALL_DAYS_LIST:
+        return ""
+
     index = ALL_DAYS_LIST.index(day) + 1
     if index == len(ALL_DAYS_LIST):
         index = 0
     return ALL_DAYS_LIST[index]
 
-def extract_days(days_string):
+def extract_days(days_string: str) -> List[str]:
     all_days_list_regex = "(?:" + "|".join(ALL_DAYS_LIST) + ")"
     extract_days_regex = f"(?:{all_days_list_regex}-{all_days_list_regex})|{all_days_list_regex}"
 
@@ -42,7 +46,7 @@ def extract_days(days_string):
 
     return days
 
-def extract_times(time_string):
+def extract_times(time_string: str) -> TypedDict:
     try:
         times_list = time_string.split(" - ")
         if len(times_list) != 2:
@@ -55,7 +59,7 @@ def extract_times(time_string):
     except ValueError as e:
         raise ValueError(f"Invalid time string format: {time_string}") from e
     
-def midnight_crossover_etl(restaurant_hours_old):
+def midnight_crossover_etl(restaurant_hours_old: List[TypedDict]) -> List[TypedDict]:
     restaurant_hours_new = []
     for hours in restaurant_hours_old:
         if hours['close_time'] < datetime.strptime("11:59", "%H:%M").time():
@@ -69,7 +73,7 @@ def midnight_crossover_etl(restaurant_hours_old):
 
     return restaurant_hours_new
     
-def restaurant_hours_etl(x):
+def restaurant_hours_etl(x: str) -> List[TypedDict]:
     days_times_open = []
 
     for schedule_chunk in x.split("/"):
@@ -85,7 +89,7 @@ def restaurant_hours_etl(x):
 
     return midnight_crossover_etl(days_times_open)
 
-def main_etl(data):
+def main_etl(data: pd.DataFrame) -> pd.DataFrame:
     try:
         processed_data = data.copy()
         processed_data["open_times_normalized"] = processed_data['Hours'].apply(restaurant_hours_etl)
@@ -99,10 +103,14 @@ def main_etl(data):
     except Exception as e:
         raise RuntimeError(f"ETL process failed: {str(e)}") from e
 
-def is_open(open_time, close_time, current_time):
+def is_open(open_time: time, close_time: time, current_time: time) -> bool:
     return open_time <= current_time <= close_time
 
-def search_open_restaurants(data, datetime_str, restaurant=None):
+def search_open_restaurants(
+    data: pd.DataFrame,
+    datetime_str: str,
+    restaurant: Optional[str] = None
+) -> List[str]:
     try:
         dt = datetime.strptime(datetime_str, "%Y-%m-%d %H:%M")
         search_day = dt.strftime("%A")[:3]

@@ -1,8 +1,11 @@
 import pandas as pd
 import re
 from datetime import datetime
+from io import StringIO
 
 pd.set_option('display.max_colwidth', None)
+
+ALL_DAYS_LIST = ["Mon", "Tues", "Wed", "Thu", "Fri", "Sat", "Sun"]
 
 file = "liine_data.txt"
 
@@ -11,9 +14,14 @@ def parse_time_alt(time_str):
     fmt = "%I:%M %p" if ":" in time_str else "%I %p"
     return datetime.strptime(time_str, fmt).time()
 
+def get_next_day(day):
+    index = ALL_DAYS_LIST.index(day) + 1
+    if index == len(ALL_DAYS_LIST):
+        index = 0
+    return ALL_DAYS_LIST[index]
+
 def extract_days(days_string):
-    all_days_list = ["Mon", "Tues", "Wed", "Thu", "Fri", "Sat", "Sun"]
-    all_days_list_regex = "(?:" + "|".join(all_days_list) + ")"
+    all_days_list_regex = "(?:" + "|".join(ALL_DAYS_LIST) + ")"
     extract_days_regex = f"(?:{all_days_list_regex}-{all_days_list_regex})|{all_days_list_regex}"
 
     raw_days = re.findall(extract_days_regex, days_string)
@@ -25,10 +33,10 @@ def extract_days(days_string):
             start_day = day_range[0]
             end_day = day_range[1]
 
-            start_day_index = all_days_list.index(start_day)
-            end_day_index = all_days_list.index(end_day) + 1
+            start_day_index = ALL_DAYS_LIST.index(start_day)
+            end_day_index = ALL_DAYS_LIST.index(end_day) + 1
 
-            day_chunks = all_days_list[start_day_index:end_day_index]
+            day_chunks = ALL_DAYS_LIST[start_day_index:end_day_index]
             days.extend(day_chunks)
         else:
             days.append(day)
@@ -38,6 +46,8 @@ def extract_days(days_string):
 def extract_times(time_string):
     try:
         times_list = time_string.split(" - ")
+        if len(times_list) != 2:
+            raise ValueError(f"Invalid time format: {time_string}")
 
         open_time = parse_time_alt(times_list[0])
         close_time = parse_time_alt(times_list[1])
@@ -45,7 +55,21 @@ def extract_times(time_string):
         return {"open_time": open_time, "close_time": close_time}
     except ValueError as e:
         raise ValueError(f"Invalid time string format: {time_string}") from e
+    
+def midnight_crossover_etl(restaurant_hours_old):
+    restaurant_hours_new = []
+    for hours in restaurant_hours_old:
+        if hours['close_time'] < datetime.strptime("11:59", "%H:%M").time():
+            temp = hours.copy()
+            temp['close_time'] = datetime.max.time()
+            restaurant_hours_new.append(temp)
+            midnight_crossover_data = {"day": get_next_day(temp['day']), "open_time": datetime.min.time(), "close_time": hours["close_time"]}
+            restaurant_hours_new.append(midnight_crossover_data)
+        else:
+            restaurant_hours_new.append(hours)
 
+    return restaurant_hours_new
+    
 def restaurant_hours_etl(x):
     days_times_open = []
 
@@ -60,7 +84,7 @@ def restaurant_hours_etl(x):
         for day in days:
             days_times_open.append({"day": day, "open_time": times["open_time"], "close_time": times["close_time"]})
 
-    return days_times_open
+    return midnight_crossover_etl(days_times_open)
 
 def main_etl(data):
     try:
@@ -75,18 +99,9 @@ def main_etl(data):
         return data_expanded
     except Exception as e:
         raise RuntimeError(f"ETL process failed: {str(e)}") from e
-    
 
 def is_open(open_time, close_time, current_time):
-    """Check if restaurant is open at given time, handling midnight crossing."""
-    if open_time <= close_time:
-        return open_time <= current_time <= close_time
-    else:
-        # Handle cases where closing time is past midnight
-        # Given the format of the data, which shows 42nd Street Oyster Bar	Mon-Sat 11 am - 12 am / Sun 12 pm - 2 am
-        # If the restaurant shows as open til 2 am on Sunday, the search logic will use Sunday as the day and 2am as the close time,
-        # even though it is technically Monday
-        return current_time >= open_time or current_time <= close_time
+    return open_time <= current_time <= close_time
 
 def search_open_restaurants(data, datetime_str):
     try:
@@ -112,13 +127,22 @@ def search_open_restaurants(data, datetime_str):
         raise ValueError(f"Invalid datetime format. Expected 'YYYY-MM-DD HH:MM', got '{datetime_str}'") from e
 
 if __name__ == "__main__":  
-    raw_data = pd.read_csv(file)
+    # raw_data = pd.read_csv(file)
+    csv_data = '''"Restaurant Name","Hours"
+"Seoul 116","Mon-Sun 11 am - 4 am"'''
+    
+    raw_data = pd.read_csv(StringIO(csv_data))
+
     main_data = main_etl(raw_data)
 
-    datetime_str = "2024-11-24 01:35"
+    # datetime_str = "2024-11-26 01:35"
+    datetime_str = "2024-11-26 13:30"
+
+    print(main_data)
 
     x = search_open_restaurants(main_data, datetime_str)
 
     print(x)
+    print(len(x))
 
     main_data.to_csv("test_data.csv")

@@ -131,7 +131,7 @@ def search_open_restaurants(
             is_restaurant = (filtered_data["Restaurant Name"]==restaurant)
             filtered_data = filtered_data[is_restaurant]
 
-        return filtered_data[is_open_hour][["Restaurant Name"]].drop_duplicates().values.flatten().tolist()
+        return filtered_data.loc[is_open_hour, "Restaurant Name"].drop_duplicates().tolist()
     
     except ValueError as e:
         raise ValueError(f"Invalid datetime format. Expected 'YYYY-MM-DD HH:MM', got '{datetime_str}'") from e

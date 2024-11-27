@@ -2,19 +2,20 @@ from fastapi import FastAPI, status, Query, Request, HTTPException
 from fastapi.responses import JSONResponse
 import pandas as pd
 from datetime import datetime
+from contextlib import asynccontextmanager
 
 from restaurant_schedules import search_open_restaurants, main_etl, file
 
-app = FastAPI()
 
-@app.on_event("startup")
-async def startup_event():
-    """Load and process the data when the application starts"""
+@asynccontextmanager
+async def lifespan(app: FastAPI):
     restaurant_schedules_raw = pd.read_csv(file)
     app.state.restaurant_schedules_proc = main_etl(restaurant_schedules_raw)
 
+app = FastAPI(lifespan=lifespan)
+
 @app.get("/open-restaurants")
-def search(request: Request, datetime_str: str = Query(default=None, example="2024-11-26 19:30")):
+def search(request: Request, datetime_str: str = Query(default=None, examples="2024-11-26 19:30")):
     if not hasattr(request.app.state, "restaurant_schedules_proc"):
         return JSONResponse(
             content={"error": "Server experienced issue loading restaurant schedule."},

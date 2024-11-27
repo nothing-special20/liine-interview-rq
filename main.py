@@ -11,6 +11,7 @@ from restaurant_schedules import search_open_restaurants, main_etl, file
 async def lifespan(app: FastAPI):
     restaurant_schedules_raw = pd.read_csv(file)
     app.state.restaurant_schedules_proc = main_etl(restaurant_schedules_raw)
+    yield
 
 app = FastAPI(lifespan=lifespan)
 

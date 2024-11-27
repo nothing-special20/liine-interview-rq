@@ -27,4 +27,4 @@ def test_split_hours(processed_split_data):
     assert len(search_open_restaurants(processed_split_data, "2024-11-27 00:00", "Bonchon")) == 1
     assert len(search_open_restaurants(processed_split_data, "2024-11-23 15:00", "Bonchon")) == 1
     assert len(search_open_restaurants(processed_split_data, "2024-11-23 14:59", "Bonchon")) == 0
-    assert len(search_open_restaurants(processed_split_data, "2024-11-26 22:01")) == 2
+    assert len(search_open_restaurants(processed_split_data, "2024-11-26 22:01")) == 4

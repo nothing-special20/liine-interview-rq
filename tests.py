@@ -1,10 +1,18 @@
 import pytest
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+from contextlib import asynccontextmanager
 import pandas as pd
 from io import StringIO
 from restaurant_schedules import (
     main_etl,
     search_open_restaurants,
 )
+from main import app 
+
+@pytest.fixture
+def test_client():
+    return TestClient(app, base_url="http://localhost") 
 
 @pytest.fixture(scope="module")
 def test_data():
@@ -28,3 +36,33 @@ def test_split_hours(processed_split_data):
     assert len(search_open_restaurants(processed_split_data, "2024-11-23 15:00", "Bonchon")) == 1
     assert len(search_open_restaurants(processed_split_data, "2024-11-23 14:59", "Bonchon")) == 0
     assert len(search_open_restaurants(processed_split_data, "2024-11-26 22:01")) == 4
+
+@pytest.fixture
+def mock_startup(monkeypatch, processed_split_data):
+   @asynccontextmanager
+   async def mock_lifespan(app: FastAPI):
+       app.state.restaurant_schedules_proc = processed_split_data
+       yield
+   monkeypatch.setattr("main.lifespan", mock_lifespan)
+   return mock_lifespan
+
+@pytest.mark.asyncio
+async def test_valid_datetime_weekday(test_client, mock_startup):
+    async with mock_startup(app):
+        response = test_client.get("/open-restaurants?datetime_str=2024-11-27 14:00")
+        assert response.status_code == 200
+        assert "Bonchon" not in response.json()
+
+@pytest.mark.asyncio
+async def test_invalid_datetime_format(test_client, mock_startup):
+    async with mock_startup(app):
+        response = test_client.get("/open-restaurants?datetime_str=2024-11-27")
+        assert response.status_code == 400
+        assert "Invalid datetime format" in response.json()["detail"]
+
+@pytest.mark.asyncio
+async def test_no_restaurants_open(test_client, mock_startup):
+    async with mock_startup(app):
+        response = test_client.get("/open-restaurants?datetime_str=2024-11-27 5:00")
+        assert response.status_code == 200
+        assert len(response.json()) == 0

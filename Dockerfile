@@ -1,4 +1,4 @@
-FROM python:3.11-slim-bookworm as build-python
+FROM python:3.11-slim-bookworm AS build-python
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \

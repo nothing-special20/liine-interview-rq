@@ -1,7 +1,7 @@
 import pytest
 import pandas as pd
 from io import StringIO
-from liine_tech_take_home_test import (
+from restaurant_schedules import (
     main_etl,
     search_open_restaurants,
 )

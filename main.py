@@ -3,7 +3,7 @@ from fastapi.responses import JSONResponse
 import pandas as pd
 from datetime import datetime
 
-from liine_tech_take_home_test import search_open_restaurants, main_etl, file
+from restaurant_schedules import search_open_restaurants, main_etl, file
 
 app = FastAPI()
 
@@ -11,11 +11,11 @@ app = FastAPI()
 async def startup_event():
     """Load and process the data when the application starts"""
     restaurant_schedules_raw = pd.read_csv(file)
-    app.state.restaurant_schedules = main_etl(restaurant_schedules_raw)
+    app.state.restaurant_schedules_proc = main_etl(restaurant_schedules_raw)
 
 @app.get("/open-restaurants")
 def search(request: Request, datetime_str: str = Query(default=None, example="2024-11-26 19:30")):
-    if not hasattr(request.app.state, "restaurant_schedules"):
+    if not hasattr(request.app.state, "restaurant_schedules_proc"):
         return JSONResponse(
             content={"error": "Server experienced issue loading restaurant schedule."},
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -29,7 +29,7 @@ def search(request: Request, datetime_str: str = Query(default=None, example="20
             detail="Invalid datetime format. Use YYYY-MM-DD HH:MM"
         )
 
-    open_restaurants = search_open_restaurants(request.app.state.restaurant_schedules, datetime_str)
+    open_restaurants = search_open_restaurants(request.app.state.restaurant_schedules_proc, datetime_str)
 
     return JSONResponse(
         content=open_restaurants,
